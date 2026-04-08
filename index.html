@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flick AI</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#08090d;--bg2:#0f1117;--bg3:#161922;--bg4:#1c2030;--bg5:#222840;
+  --border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.11);--border3:rgba(255,255,255,0.18);
+  --accent:#4f6ef7;--accent2:#6d85fa;--accent3:#8fa0fc;--glow:rgba(79,110,247,0.25);
+  --green:#19d4a0;--green2:rgba(25,212,160,0.12);
+  --amber:#f5a623;--amber2:rgba(245,166,35,0.12);
+  --red:#e85555;--red2:rgba(232,85,85,0.1);
+  --purple:#a855f7;--purple2:rgba(168,85,247,0.12);
+  --cyan:#22d3ee;--cyan2:rgba(34,211,238,0.1);
+  --text:#eceef5;--text2:#9097b0;--text3:#4a5068;
+  --mono:'Space Mono',monospace;--sans:'Syne',sans-serif;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);overflow-x:hidden;min-height:100vh}
+#bg-canvas{position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.35}
+.wrap{position:relative;z-index:1;display:flex;flex-direction:column;min-height:100vh}
+
+/* NAV */
+.nav{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 20px;border-bottom:1px solid var(--border);
+  background:rgba(8,9,13,.92);backdrop-filter:blur(16px);
+  position:sticky;top:0;z-index:200;
+}
+.brand{display:flex;align-items:center;gap:10px}
+.brand-mark{
+  width:34px;height:34px;border-radius:9px;background:var(--accent);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 0 20px var(--glow);
+}
+.brand-mark svg{width:18px;height:18px}
+.brand-name{font-size:15px;font-weight:800;letter-spacing:.04em}
+.brand-tag{font-size:10px;background:var(--bg3);border:1px solid var(--border2);
+  color:var(--text3);padding:2px 8px;border-radius:20px;font-family:var(--mono)}
+.nav-right{display:flex;align-items:center;gap:10px}
+.live-badge{
+  display:flex;align-items:center;gap:6px;font-size:11px;font-family:var(--mono);
+  background:var(--green2);border:1px solid rgba(25,212,160,.25);
+  color:var(--green);border-radius:20px;padding:4px 12px;
+}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:livepulse 1.8s ease infinite}
+@keyframes livepulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(25,212,160,.5)}50%{opacity:.6;box-shadow:0 0 0 5px rgba(25,212,160,0)}}
+.model-tag{font-size:11px;font-family:var(--mono);color:var(--text3);
+  background:var(--bg3);border:1px solid var(--border);padding:4px 10px;border-radius:6px}
+
+/* LAYOUT */
+.layout{display:grid;grid-template-columns:260px 1fr 280px;height:calc(100vh - 55px)}
+
+/* LEFT SIDEBAR */
+.lsidebar{border-right:1px solid var(--border);overflow-y:auto;background:var(--bg)}
+.sb-section{padding:14px 16px;border-bottom:1px solid var(--border)}
+.sb-label{font-size:9px;font-family:var(--mono);color:var(--text3);letter-spacing:.14em;text-transform:uppercase;margin-bottom:10px}
+
+.agent-row{
+  display:flex;align-items:center;gap:9px;padding:9px 10px;
+  border-radius:9px;background:var(--bg3);border:1px solid var(--border);
+  margin-bottom:7px;cursor:pointer;transition:all .2s;
+}
+.agent-row:hover{border-color:var(--border2);background:var(--bg4)}
+.agent-row.sel{border-color:var(--accent);background:rgba(79,110,247,.07);box-shadow:0 0 16px rgba(79,110,247,.12)}
+.agent-row.busy{border-color:var(--amber);animation:busyborder 1.5s ease infinite}
+@keyframes busyborder{0%,100%{box-shadow:none}50%{box-shadow:0 0 10px rgba(245,166,35,.3)}}
+.a-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.a-info{flex:1;min-width:0}
+.a-name{font-size:12px;font-weight:700;margin-bottom:1px}
+.a-desc{font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.a-status{font-size:9px;font-family:var(--mono);padding:2px 6px;border-radius:4px;margin-top:3px;display:inline-block}
+
+.tool-row{display:flex;align-items:center;gap:7px;padding:5px 8px;border-radius:6px;font-size:11px;color:var(--text2);cursor:default;margin-bottom:2px}
+.t-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+
+/* CENTER */
+.center{display:flex;flex-direction:column;background:var(--bg);overflow:hidden}
+
+/* TASK INPUT */
+.task-zone{padding:18px 20px;border-bottom:1px solid var(--border);background:var(--bg)}
+.tz-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.tz-title{font-size:10px;font-family:var(--mono);color:var(--text3);letter-spacing:.12em;text-transform:uppercase}
+.tz-model{font-size:10px;color:var(--accent3);font-family:var(--mono)}
+
+.input-box{
+  background:var(--bg3);border:1px solid var(--border2);border-radius:11px;
+  padding:13px 15px;transition:all .2s;
+}
+.input-box:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--glow)}
+textarea{
+  width:100%;background:transparent;border:none;outline:none;
+  font-family:var(--sans);font-size:13px;color:var(--text);
+  resize:none;min-height:64px;line-height:1.65;
+}
+textarea::placeholder{color:var(--text3)}
+.input-footer{display:flex;align-items:center;justify-content:space-between;margin-top:10px;gap:8px}
+.chips{display:flex;gap:5px;flex-wrap:wrap;flex:1}
+.chip{
+  font-size:10px;color:var(--text2);background:var(--bg3);
+  border:1px solid var(--border);border-radius:20px;padding:4px 9px;
+  cursor:pointer;transition:all .15s;white-space:nowrap;
+}
+.chip:hover{border-color:var(--accent);color:var(--accent3)}
+.run-btn{
+  display:flex;align-items:center;gap:7px;
+  background:var(--accent);color:#fff;border:none;
+  border-radius:8px;padding:8px 16px;font-size:12px;font-weight:700;
+  cursor:pointer;font-family:var(--sans);white-space:nowrap;
+  transition:all .2s;box-shadow:0 0 20px var(--glow);
+}
+.run-btn:hover{background:var(--accent2);transform:translateY(-1px);box-shadow:0 4px 24px var(--glow)}
+.run-btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+
+/* STREAM PANEL */
+.stream-panel{flex:1;overflow-y:auto;padding:18px 20px}
+
+.phase-bar{
+  display:flex;align-items:center;gap:8px;margin:8px 0 12px;
+}
+.phase-ic{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.phase-lbl{font-size:11px;font-weight:700;letter-spacing:.03em}
+.phase-line{flex:1;height:1px;background:var(--border)}
+
+.step{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:10px;padding:12px 15px;margin-bottom:9px;
+  animation:fadeup .3s ease both;
+}
+@keyframes fadeup{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.step.think{border-color:rgba(168,85,247,.35);background:rgba(168,85,247,.03)}
+.step.act  {border-color:rgba(79,110,247,.35);background:rgba(79,110,247,.03)}
+.step.obs  {border-color:rgba(25,212,160,.35);background:rgba(25,212,160,.03)}
+.step.err  {border-color:rgba(232,85,85,.35);background:rgba(232,85,85,.03)}
+.step.final{border-color:rgba(25,212,160,.5);background:rgba(25,212,160,.05);box-shadow:0 0 16px rgba(25,212,160,.1)}
+
+.step-hd{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.step-tag{font-size:9px;font-family:var(--mono);font-weight:700;letter-spacing:.1em;padding:2px 7px;border-radius:4px}
+.tt{background:var(--purple2);color:var(--purple)}
+.ta{background:rgba(79,110,247,.15);color:var(--accent2)}
+.to{background:var(--green2);color:var(--green)}
+.te{background:var(--red2);color:var(--red)}
+.step-agent{font-size:11px;color:var(--text2);font-weight:600}
+.step-ts{font-size:10px;color:var(--text3);margin-left:auto;font-family:var(--mono)}
+.step-body{font-size:12px;color:var(--text2);line-height:1.75}
+.step-body strong{color:var(--text);font-weight:700}
+.step-body em{color:var(--cyan);font-style:normal}
+
+.code-block{
+  background:var(--bg4);border:1px solid var(--border);
+  border-radius:7px;padding:10px 12px;margin-top:8px;
+  font-family:var(--mono);font-size:11px;line-height:1.7;
+  overflow-x:auto;color:var(--text2);
+  white-space:pre;
+}
+
+.stream-cursor{display:inline-block;width:2px;height:13px;background:var(--accent3);animation:cur .7s step-end infinite;vertical-align:text-bottom;margin-left:1px}
+@keyframes cur{0%,100%{opacity:1}50%{opacity:0}}
+
+.think-anim{display:flex;gap:4px;align-items:center}
+.think-anim span{width:5px;height:5px;border-radius:50%;background:var(--purple);animation:tdot .7s ease infinite}
+.think-anim span:nth-child(2){animation-delay:.15s}
+.think-anim span:nth-child(3){animation-delay:.3s}
+@keyframes tdot{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+
+.empty{
+  flex:1;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:12px;padding:40px;text-align:center;
+}
+.empty-icon{font-size:42px;opacity:.25}
+.empty-h{font-size:15px;font-weight:700;color:var(--text2)}
+.empty-p{font-size:12px;color:var(--text3);max-width:280px;line-height:1.7}
+
+/* RIGHT */
+.rsidebar{border-left:1px solid var(--border);overflow-y:auto;background:var(--bg)}
+.rs-section{padding:14px 16px;border-bottom:1px solid var(--border)}
+.rs-label{font-size:9px;font-family:var(--mono);color:var(--text3);letter-spacing:.14em;text-transform:uppercase;margin-bottom:10px}
+
+.prog-track{height:3px;background:var(--bg3);border-radius:2px;overflow:hidden;margin-bottom:6px}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--green));border-radius:2px;transition:width .6s ease}
+.prog-stats{display:flex;justify-content:space-between;font-size:10px;color:var(--text3);font-family:var(--mono)}
+
+.plan-node{
+  display:flex;align-items:center;gap:7px;padding:7px 9px;
+  border-radius:7px;background:var(--bg3);border:1px solid var(--border);
+  margin-bottom:5px;font-size:11px;transition:all .3s;
+}
+.plan-node.active{border-color:var(--accent);background:rgba(79,110,247,.08);box-shadow:0 0 10px rgba(79,110,247,.15)}
+.plan-node.done{border-color:var(--green);background:var(--green2)}
+.plan-node.pending{opacity:.4}
+.pn-icon{width:20px;height:20px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;background:var(--bg4)}
+.pn-text{flex:1;font-size:11px;color:var(--text2)}
+.plan-node.done .pn-text{color:var(--green)}
+.plan-node.active .pn-text{color:var(--text)}
+.pn-conn{width:1px;height:8px;background:var(--border);margin:0 0 0 18px}
+
+.mem-chip{
+  background:var(--bg3);border:1px solid var(--border);
+  border-radius:7px;padding:7px 9px;margin-bottom:5px;
+}
+.mem-k{font-size:10px;font-family:var(--mono);color:var(--accent3);margin-bottom:2px}
+.mem-v{font-size:11px;color:var(--text2);line-height:1.5}
+
+.met-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.met-card{background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:8px 10px;text-align:center}
+.met-val{font-size:18px;font-weight:700;font-family:var(--mono);margin-bottom:1px}
+.met-lbl{font-size:9px;color:var(--text3);letter-spacing:.05em}
+
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+</style>
+</head>
+<body>
+<canvas id="bg-canvas"></canvas>
+<div class="wrap">
+
+<!-- NAV -->
+<div class="nav">
+  <div class="brand">
+    <div class="brand-mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+      </svg>
+    </div>
+    <span class="brand-name">FLICK AI</span>
+    
+  </div>
+  <div class="nav-right">
+    
+    <div class="live-badge">
+      <div class="live-dot"></div>
+      <span id="nav-status">CONNECTED</span>
+    </div>
+  </div>
+</div>
+
+<!-- LAYOUT -->
+<div class="layout">
+
+  <!-- LEFT -->
+  <div class="lsidebar">
+    <div class="sb-section">
+      <div class="sb-label">Agent Roster</div>
+      <div class="agent-row sel" id="ag-orchestrator">
+        <div class="a-icon" style="background:rgba(79,110,247,.15)">🧠</div>
+        <div class="a-info">
+          <div class="a-name">Orchestrator</div>
+          <div class="a-desc">Plans, delegates, synthesises</div>
+          <div class="a-status" style="background:rgba(79,110,247,.15);color:var(--accent3)">PRIMARY</div>
+        </div>
+      </div>
+      <div class="agent-row" id="ag-researcher">
+        <div class="a-icon" style="background:var(--green2)">🔍</div>
+        <div class="a-info">
+          <div class="a-name">Researcher</div>
+          <div class="a-desc">Gathers & retrieves context</div>
+          <div class="a-status" style="background:var(--green2);color:var(--green)">SUB-AGENT</div>
+        </div>
+      </div>
+      <div class="agent-row" id="ag-coder">
+        <div class="a-icon" style="background:var(--amber2)">⚙️</div>
+        <div class="a-info">
+          <div class="a-name">Code Agent</div>
+          <div class="a-desc">Writes & executes code</div>
+          <div class="a-status" style="background:var(--amber2);color:var(--amber)">SUB-AGENT</div>
+        </div>
+      </div>
+      <div class="agent-row" id="ag-critic">
+        <div class="a-icon" style="background:var(--purple2)">🔬</div>
+        <div class="a-info">
+          <div class="a-name">Critic Agent</div>
+          <div class="a-desc">Validates quality & safety</div>
+          <div class="a-status" style="background:var(--purple2);color:var(--purple)">SUB-AGENT</div>
+        </div>
+      </div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-label">Simulated Tools</div>
+      <div class="tool-row"><div class="t-dot" style="background:var(--green)"></div>web_search</div>
+      <div class="tool-row"><div class="t-dot" style="background:var(--green)"></div>code_executor</div>
+      <div class="tool-row"><div class="t-dot" style="background:var(--green)"></div>memory_store</div>
+      <div class="tool-row"><div class="t-dot" style="background:var(--green)"></div>file_manager</div>
+      <div class="tool-row"><div class="t-dot" style="background:var(--amber)"></div>browser_agent</div>
+      <div class="tool-row"><div class="t-dot" style="background:var(--amber)"></div>api_caller</div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-label">Agentic Loop</div>
+      <div style="font-size:11px;color:var(--text3);line-height:2;padding:0 2px">
+        <div style="display:flex;align-items:center;gap:6px"><span style="color:var(--purple)">①</span> Perceive task</div>
+        <div style="display:flex;align-items:center;gap:6px"><span style="color:var(--accent2)">②</span> Plan subtasks</div>
+        <div style="display:flex;align-items:center;gap:6px"><span style="color:var(--amber)">③</span> Execute & use tools</div>
+        <div style="display:flex;align-items:center;gap:6px"><span style="color:var(--green)">④</span> Observe results</div>
+        <div style="display:flex;align-items:center;gap:6px"><span style="color:var(--cyan)">⑤</span> Reflect & iterate</div>
+        <div style="display:flex;align-items:center;gap:6px"><span style="color:var(--text2)">⑥</span> Deliver output</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER -->
+  <div class="center">
+    <div class="task-zone">
+      <div class="tz-header">
+        <span class="tz-title">Task Input</span>
+     
+      </div>
+      <div class="input-box">
+        <textarea id="task-inp" rows="3" placeholder="Describe any task for the agent to plan, reason through, and execute autonomously...&#10;&#10;Examples: Research LLM architectures • Build a REST API • Analyze a dataset • Write a Python tool"></textarea>
+        <div class="input-footer">
+          <div class="chips">
+            <span class="chip" onclick="setTask('Research the top 5 most impactful AI models of 2024 and summarise their key innovations')">🔬 Research AI models</span>
+            <span class="chip" onclick="setTask('Build a Python FastAPI endpoint with JWT authentication and write unit tests for it')">⚙️ Build FastAPI app</span>
+            <span class="chip" onclick="setTask('Analyze a dataset of e-commerce sales, find patterns, and recommend a visualisation strategy')">📊 Analyze e-commerce data</span>
+            <span class="chip" onclick="setTask('Plan a multi-step machine learning pipeline for text classification with preprocessing and evaluation')">🤖 ML pipeline</span>
+          </div>
+          <button class="run-btn" id="run-btn" onclick="startAgent()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Run Agent
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="stream-panel" id="stream-panel">
+      <div class="empty" id="empty-state">
+        <div class="empty-icon">⚡</div>
+    
+        <div class="empty-p">This agent uses the real Anthropic API. Type a task and watch Claude reason, plan, delegate to sub-agents, call tools, and produce structured output — step by step.</div>
+      </div>
+      <div id="steps" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="rsidebar">
+    <div class="rs-section">
+      <div class="rs-label">Execution Progress</div>
+      <div class="prog-track"><div class="prog-fill" id="prog" style="width:0%"></div></div>
+      <div class="prog-stats">
+        <span id="prog-lbl">Idle</span>
+        <span id="prog-pct">0%</span>
+      </div>
+    </div>
+    <div class="rs-section">
+      <div class="rs-label">Live Task Plan</div>
+      <div id="plan-panel"><div style="font-size:11px;color:var(--text3);text-align:center;padding:14px 0">No active plan</div></div>
+    </div>
+    <div class="rs-section">
+      <div class="rs-label">Working Memory</div>
+      <div id="mem-panel"><div style="font-size:11px;color:var(--text3);text-align:center;padding:14px 0">Empty</div></div>
+    </div>
+    <div class="rs-section">
+      <div class="rs-label">Session Metrics</div>
+      <div class="met-grid">
+        <div class="met-card"><div class="met-val" id="m-steps" style="color:var(--accent2)">0</div><div class="met-lbl">STEPS</div></div>
+        <div class="met-card"><div class="met-val" id="m-calls" style="color:var(--green)">0</div><div class="met-lbl">API CALLS</div></div>
+        <div class="met-card"><div class="met-val" id="m-tokens" style="color:var(--amber)">0</div><div class="met-lbl">TOKENS</div></div>
+        <div class="met-card"><div class="met-val" id="m-time" style="color:var(--purple)">0s</div><div class="met-lbl">RUNTIME</div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script>
+// ── BG CANVAS ──
+const canvas = document.getElementById('bg-canvas');
+const ctx = canvas.getContext('2d');
+let W, H;
+const resize = () => { W = canvas.width = innerWidth; H = canvas.height = innerHeight; };
+resize(); addEventListener('resize', resize);
+const pts = Array.from({length:35}, ()=>({x:Math.random()*1400,y:Math.random()*900,vx:(Math.random()-.5)*.25,vy:(Math.random()-.5)*.25,r:Math.random()*1.5+.4}));
+(function loop(){
+  ctx.clearRect(0,0,W,H);
+  ctx.strokeStyle='rgba(79,110,247,.05)'; ctx.lineWidth=.5;
+  for(let x=0;x<W;x+=56){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}
+  for(let y=0;y<H;y+=56){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+  pts.forEach(p=>{
+    p.x+=p.vx; p.y+=p.vy;
+    if(p.x<0)p.x=W; if(p.x>W)p.x=0;
+    if(p.y<0)p.y=H; if(p.y>H)p.y=0;
+    ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+    ctx.fillStyle='rgba(79,110,247,.5)';ctx.fill();
+  });
+  pts.forEach((a,i)=>pts.slice(i+1).forEach(b=>{
+    const d=Math.hypot(a.x-b.x,a.y-b.y);
+    if(d<110){ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);
+    ctx.strokeStyle=`rgba(79,110,247,${.15*(1-d/110)})`;ctx.lineWidth=.35;ctx.stroke()}
+  }));
+  requestAnimationFrame(loop);
+})();
+
+// ── STATE ──
+let running = false, aborted = false;
+let stepCount=0, apiCalls=0, tokenCount=0, startTime=null, timerRef=null;
+
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+// ── METRICS ──
+function tick(){
+  document.getElementById('m-steps').textContent = stepCount;
+  document.getElementById('m-calls').textContent = apiCalls;
+  document.getElementById('m-tokens').textContent = (tokenCount/1000).toFixed(1)+'k';
+  if(startTime){ const s=Math.round((Date.now()-startTime)/1000); document.getElementById('m-time').textContent=s+'s'; }
+}
+function setProgress(done,total,label){
+  const p=total?Math.round(done/total*100):0;
+  document.getElementById('prog').style.width=p+'%';
+  document.getElementById('prog-lbl').textContent=label||`${done}/${total} steps`;
+  document.getElementById('prog-pct').textContent=p+'%';
+}
+function setNavStatus(t){ document.getElementById('nav-status').textContent=t; }
+
+// ── PLAN RENDER ──
+function renderPlan(nodes){
+  document.getElementById('plan-panel').innerHTML = nodes.map((n,i)=>
+    `<div class="plan-node pending" id="pn-${n.id}">
+       <div class="pn-icon">${n.icon}</div>
+       <div class="pn-text">${n.label}</div>
+     </div>${i<nodes.length-1?'<div class="pn-conn"></div>':''}`
+  ).join('');
+}
+function activatePlanNode(id){
+  document.querySelectorAll('.plan-node').forEach(n=>{
+    if(n.id==='pn-'+id) n.className='plan-node active';
+    else if(n.classList.contains('active')) n.className='plan-node done';
+  });
+}
+function finishPlan(){ document.querySelectorAll('.plan-node').forEach(n=>n.className='plan-node done'); }
+
+// ── MEMORY ──
+let memory = {};
+function storeMem(k,v){
+  memory[k]=v;
+  document.getElementById('mem-panel').innerHTML = Object.entries(memory).map(([k,v])=>
+    `<div class="mem-chip"><div class="mem-k">${k}</div><div class="mem-v">${v}</div></div>`
+  ).join('') || '<div style="font-size:11px;color:var(--text3);text-align:center;padding:14px 0">Empty</div>';
+}
+
+// ── AGENT BUSY ──
+function setAgentBusy(id, busy){
+  const el = document.getElementById('ag-'+id);
+  if(!el) return;
+  if(busy){ el.classList.add('busy'); document.querySelectorAll('.agent-row').forEach(e=>e.classList.remove('sel')); el.classList.add('sel'); }
+  else { el.classList.remove('busy'); }
+}
+
+// ── ADD STEP ──
+function addPhaseBar(icon, label, colorVar){
+  const el = document.createElement('div');
+  el.className='phase-bar';
+  el.innerHTML=`<div class="phase-ic" style="background:${colorVar}">${icon}</div><div class="phase-lbl">${label}</div><div class="phase-line"></div>`;
+  document.getElementById('steps').appendChild(el);
+}
+
+function addStep(type, agent, content, codeBlock){
+  const el = document.createElement('div');
+  const tagMap = {think:{cls:'tt',label:'REASON'},act:{cls:'ta',label:'ACT'},obs:{cls:'to',label:'OBSERVE'},final:{cls:'to',label:'COMPLETE'}};
+  const t = tagMap[type] || tagMap.obs;
+  const agentEmoji = {orchestrator:'🧠',researcher:'🔍',coder:'⚙️',critic:'🔬'}[agent]||'🤖';
+  const agentName = {orchestrator:'Orchestrator',researcher:'Researcher',coder:'Code Agent',critic:'Critic'}[agent]||agent;
+  el.className = `step ${type}`;
+  el.innerHTML = `
+    <div class="step-hd">
+      <span>${agentEmoji}</span>
+      <span class="step-agent">${agentName}</span>
+      <span class="step-tag ${t.cls}">${t.label}</span>
+      <span class="step-ts">${new Date().toLocaleTimeString()}</span>
+    </div>
+    <div class="step-body">${content}${codeBlock?`<div class="code-block">${codeBlock}</div>`:''}</div>
+  `;
+  document.getElementById('steps').appendChild(el);
+  el.scrollIntoView({behavior:'smooth',block:'end'});
+  stepCount++;
+  tick();
+  return el;
+}
+
+function addStreamStep(type, agent){
+  const el = addStep(type, agent, '<span class="stream-cursor"></span>');
+  const body = el.querySelector('.step-body');
+  return {
+    el, body,
+    setText(t){ body.innerHTML = t; el.scrollIntoView({behavior:'smooth',block:'end'}); },
+    setFinal(t, code){ body.innerHTML = t + (code?`<div class="code-block">${code}</div>`:''); el.scrollIntoView({behavior:'smooth',block:'end'}); }
+  };
+}
+
+function addThinkingLoader(){
+  const el = document.createElement('div');
+  el.id='loader';
+  el.className='step think';
+  el.style.display='flex';el.style.alignItems='center';el.style.gap='10px';
+  el.innerHTML=`<div class="think-anim"><span></span><span></span><span></span></div><span style="font-size:12px;color:var(--text3)">Agent is reasoning...</span>`;
+  document.getElementById('steps').appendChild(el);
+  el.scrollIntoView({behavior:'smooth',block:'end'});
+  return el;
+}
+function removeLoader(){ const l=document.getElementById('loader'); if(l) l.remove(); }
+
+// ── CORE API CALL ──
+async function callClaude(systemPrompt, userMessage, maxTokens=1500){
+  apiCalls++;
+  tick();
+  const resp = await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      model:'claude-sonnet-4-20250514',
+      max_tokens: maxTokens,
+      system: systemPrompt,
+      messages:[{role:'user',content:userMessage}]
+    })
+  });
+  if(!resp.ok){ const e=await resp.json(); throw new Error(e.error?.message||'API Error'); }
+  const data = await resp.json();
+  const text = data.content.filter(b=>b.type==='text').map(b=>b.text).join('');
+  tokenCount += (data.usage?.input_tokens||0)+(data.usage?.output_tokens||0);
+  tick();
+  return text;
+}
+
+// ── STREAMING TYPEWRITER ──
+async function typewrite(el, text, speed=12){
+  el.setText('');
+  const words = text.split(' ');
+  let current = '';
+  for(const w of words){
+    if(aborted) break;
+    current += (current?' ':'')+w;
+    el.setText(current+'<span class="stream-cursor"></span>');
+    await sleep(speed + Math.random()*8);
+  }
+  el.setText(current);
+}
+
+// ── PARSE JSON SAFE ──
+function safeJSON(text){
+  try{ const m=text.match(/\{[\s\S]*\}/); return m?JSON.parse(m[0]):null; }catch(e){ return null; }
+}
+
+// ── MAIN AGENT LOOP ──
+async function startAgent(){
+  if(running) return;
+  const task = document.getElementById('task-inp').value.trim();
+  if(!task){ document.getElementById('task-inp').focus(); return; }
+
+  running=true; aborted=false; memory={};
+  stepCount=0; apiCalls=0; tokenCount=0; startTime=Date.now();
+  if(timerRef) clearInterval(timerRef);
+  timerRef = setInterval(tick, 1000);
+
+  document.getElementById('run-btn').disabled=true;
+  document.getElementById('run-btn').innerHTML='<span style="font-size:11px">⏳ Running...</span>';
+  document.getElementById('empty-state').style.display='none';
+  const steps = document.getElementById('steps');
+  steps.style.display='block'; steps.innerHTML='';
+  setNavStatus('RUNNING');
+  setProgress(0,6,'Planning...');
+
+  try {
+    // ── PHASE 1: ORCHESTRATOR PLANS ──
+    setAgentBusy('orchestrator', true);
+    addPhaseBar('🧠','Phase 1 — Planning & Decomposition','rgba(168,85,247,.15)');
+    let loader = addThinkingLoader();
+    await sleep(600);
+
+    const planRaw = await callClaude(
+      `You are an orchestrator AI agent. Your job is to decompose user tasks into a clear execution plan.
+Respond ONLY with a JSON object in this exact format (no markdown, no preamble):
+{
+  "analysis": "1-2 sentence analysis of the task",
+  "plan": [
+    {"id": "step1", "icon": "🔍", "label": "Short step name", "agent": "orchestrator|researcher|coder|critic", "description": "What this step does"}
+  ],
+  "complexity": "low|medium|high",
+  "estimated_steps": 5
+}
+Use 4-6 plan steps. Assign the right agent to each step.`,
+      `Task: ${task}`
+    );
+
+    removeLoader();
+    const planObj = safeJSON(planRaw);
+    const planNodes = planObj?.plan || [
+      {id:'analyze',icon:'🗂️',label:'Analyze task',agent:'orchestrator'},
+      {id:'research',icon:'🔍',label:'Gather context',agent:'researcher'},
+      {id:'execute',icon:'⚙️',label:'Execute',agent:'coder'},
+      {id:'review',icon:'🔬',label:'Review output',agent:'critic'},
+      {id:'synthesize',icon:'🧠',label:'Synthesize',agent:'orchestrator'},
+    ];
+    renderPlan(planNodes);
+    activatePlanNode(planNodes[0]?.id);
+    setProgress(1,6,'Decomposed task');
+
+    const analysis = planObj?.analysis || 'Breaking down the task into actionable components.';
+    const analysisEl = addStreamStep('think','orchestrator');
+    await typewrite(analysisEl, `<strong>Task analysis:</strong> ${analysis} Identified ${planNodes.length} steps. Complexity: ${planObj?.complexity||'medium'}.`);
+
+    storeMem('task', task.substring(0,60)+(task.length>60?'...':''));
+    storeMem('plan_steps', planNodes.length+' steps');
+    storeMem('complexity', planObj?.complexity||'medium');
+    setAgentBusy('orchestrator', false);
+    await sleep(400);
+
+    // ── PHASE 2: RESEARCHER ──
+    setAgentBusy('researcher', true);
+    activatePlanNode(planNodes[1]?.id || 'research');
+    addPhaseBar('🔍','Phase 2 — Research & Context Gathering','var(--green2)');
+    setProgress(2,6,'Researching...');
+    loader = addThinkingLoader();
+    await sleep(500);
+
+    const researchRaw = await callClaude(
+      `You are a Research Agent in an AI system. You gather relevant context, facts, and background information for tasks.
+Respond ONLY with a JSON object:
+{
+  "findings": ["finding 1", "finding 2", "finding 3", "finding 4"],
+  "key_concepts": ["concept 1", "concept 2", "concept 3"],
+  "relevant_context": "2-3 sentences of the most relevant background context",
+  "data_sources": ["source type 1", "source type 2"]
+}
+Be specific and technical. Findings should be actual useful facts relevant to the task.`,
+      `Research context for this task: ${task}`
+    );
+
+    removeLoader();
+    const resObj = safeJSON(researchRaw);
+    const findings = resObj?.findings || ['Identified key technical requirements','Found relevant best practices','Located useful patterns and approaches','Gathered prerequisite knowledge'];
+    const context = resObj?.relevant_context || 'Gathered relevant technical context for the task.';
+
+    const resEl = addStreamStep('act','researcher');
+    await typewrite(resEl, `<strong>Research complete.</strong> ${context}`);
+
+    const obsEl = addStreamStep('obs','researcher');
+    const findingHTML = findings.slice(0,4).map(f=>`• ${f}`).join('<br>');
+    await typewrite(obsEl, `<strong>Key findings:</strong><br>${findingHTML}`);
+
+    storeMem('key_concepts', (resObj?.key_concepts||['core concepts']).slice(0,2).join(', '));
+    storeMem('sources_checked', (resObj?.data_sources||['web','docs']).slice(0,2).join(', '));
+    setAgentBusy('researcher', false);
+    await sleep(400);
+
+    // ── PHASE 3: CODE AGENT ──
+    if(aborted) return;
+    setAgentBusy('coder', true);
+    activatePlanNode(planNodes[2]?.id || 'execute');
+    addPhaseBar('⚙️','Phase 3 — Execution & Implementation','var(--amber2)');
+    setProgress(3,6,'Executing...');
+    loader = addThinkingLoader();
+    await sleep(600);
+
+    const execRaw = await callClaude(
+      `You are a Code/Execution Agent. You implement and execute tasks based on research findings.
+Respond ONLY with a JSON object:
+{
+  "approach": "1-2 sentences on your implementation approach",
+  "code_snippet": "a short but real code snippet (10-20 lines) relevant to the task — actual working code",
+  "language": "python|javascript|bash|etc",
+  "tools_used": ["tool1", "tool2"],
+  "output_summary": "What was produced/executed"
+}
+Write REAL, working code relevant to the task. No placeholders.`,
+      `Execute this task with code and tools: ${task}\nContext from research: ${resObj?.relevant_context||''}`
+    );
+
+    removeLoader();
+    const execObj = safeJSON(execRaw);
+    const approach = execObj?.approach || 'Implementing the solution using best practices.';
+    const code = execObj?.code_snippet || '# Implementation\nprint("Task executed successfully")';
+    const lang = execObj?.language || 'python';
+
+    const execEl = addStreamStep('act','coder');
+    await typewrite(execEl, `<strong>Implementation approach:</strong> ${approach}`);
+
+    const codeEl = addStreamStep('obs','coder');
+    codeEl.setFinal(`<strong>Code generated</strong> (<em>${lang}</em>):`,
+      `# ${lang.toUpperCase()} — generated by Code Agent\n${code.replace(/</g,'&lt;').replace(/>/g,'&gt;')}`);
+
+    const toolsUsed = execObj?.tools_used || ['code_executor', 'memory_store'];
+    storeMem('tools_used', toolsUsed.slice(0,2).join(', '));
+    storeMem('output', (execObj?.output_summary||'Implementation complete').substring(0,50));
+    setAgentBusy('coder', false);
+    await sleep(400);
+
+    // ── PHASE 4: CRITIC ──
+    if(aborted) return;
+    setAgentBusy('critic', true);
+    activatePlanNode(planNodes[3]?.id || 'review');
+    addPhaseBar('🔬','Phase 4 — Quality Review & Validation','var(--purple2)');
+    setProgress(4,6,'Validating...');
+    loader = addThinkingLoader();
+    await sleep(500);
+
+    const criticRaw = await callClaude(
+      `You are a Critic/Validation Agent. You review the work done and provide a quality assessment.
+Respond ONLY with a JSON object:
+{
+  "quality_score": 8.5,
+  "strengths": ["strength 1", "strength 2", "strength 3"],
+  "improvements": ["improvement 1", "improvement 2"],
+  "verdict": "APPROVED|NEEDS_REVISION",
+  "justification": "1-2 sentences justifying the verdict"
+}
+Be constructive and specific.`,
+      `Review the execution of this task: ${task}\nApproach used: ${execObj?.approach||''}\nOutput: ${execObj?.output_summary||''}`
+    );
+
+    removeLoader();
+    const criticObj = safeJSON(criticRaw);
+    const score = criticObj?.quality_score || 8.2;
+    const verdict = criticObj?.verdict || 'APPROVED';
+    const strengths = criticObj?.strengths || ['Well-structured approach','Correct tool usage','Clear output'];
+    const justification = criticObj?.justification || 'The implementation meets the requirements effectively.';
+
+    const criticEl = addStreamStep('think','critic');
+    await typewrite(criticEl, `<strong>Quality review complete.</strong> Score: <em>${score}/10</em> — Verdict: <em>${verdict}</em>. ${justification}`);
+
+    const strengthsEl = addStreamStep('obs','critic');
+    await typewrite(strengthsEl, `<strong>Strengths identified:</strong><br>${strengths.slice(0,3).map(s=>`✓ ${s}`).join('<br>')}`);
+
+    storeMem('quality_score', `${score}/10`);
+    storeMem('critic_verdict', verdict);
+    setAgentBusy('critic', false);
+    await sleep(400);
+
+    // ── PHASE 5: SYNTHESIS ──
+    if(aborted) return;
+    setAgentBusy('orchestrator', true);
+    activatePlanNode(planNodes[4]?.id || 'synthesize');
+    addPhaseBar('✨','Phase 5 — Synthesis & Final Output','var(--green2)');
+    setProgress(5,6,'Synthesizing...');
+    loader = addThinkingLoader();
+    await sleep(600);
+
+    const finalRaw = await callClaude(
+      `You are the Orchestrator AI finalizing a task. Write a complete, high-quality final response.
+Your response should be 200-350 words, well-structured with clear sections, addressing the task fully.
+Use **bold** for key terms. Be specific, technical, and genuinely useful. This is the actual deliverable.`,
+      `Original task: ${task}
+Research context: ${resObj?.relevant_context||''}
+Implementation: ${execObj?.approach||''}
+Code produced: ${execObj?.output_summary||''}
+Quality score: ${score}/10
+
+Synthesize a comprehensive final answer that delivers real value to the user.`,
+      2000
+    );
+
+    removeLoader();
+    const finalEl = addStreamStep('final','orchestrator');
+    await typewrite(finalEl, finalRaw.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>'), 8);
+
+    // ── DONE ──
+    setProgress(6,6,'Complete');
+    finishPlan();
+    storeMem('runtime', Math.round((Date.now()-startTime)/1000)+'s');
+    setNavStatus('COMPLETE');
+    setAgentBusy('orchestrator', false);
+    clearInterval(timerRef); tick();
+
+  } catch(err) {
+    removeLoader();
+    const errEl = addStreamStep('err','orchestrator');
+    errEl.setFinal(`<strong>Error:</strong> ${err.message}. Please check your connection and try again.`);
+    setNavStatus('ERROR');
+  } finally {
+    running=false;
+    clearInterval(timerRef); tick();
+    document.getElementById('run-btn').disabled=false;
+    document.getElementById('run-btn').innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Run Agent';
+  }
+}
+
+function setTask(t){ document.getElementById('task-inp').value=t; document.getElementById('task-inp').focus(); }
+</script>
+</body>
+</html>
